@@ -1,14 +1,17 @@
 [tool.poetry]
-name = "pulumi_dynamic_acme"
+name = "pulumi-dynamic-acme"
 version = "0.0.1"
 description = ""
 authors = ["ruben-janssens <ruben-janssens@hotmail.com>"]
 readme = "README.md"
-packages = [{ include = "pulumi-dynamic-acme", from = "src" }]
+packages = [{ include = "pulumi_dynamic_acme", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+pydantic = {extras = ["email"], version = "^2.7.1"}
 pulumi = "^3.114.0"
+httpx = "^0.27.0"
+cryptography = "^42.0.5"
 
 
 [build-system]
