@@ -63,7 +63,6 @@ class LetsEncryptManager:
 
         self.__api_endpoint = "https://acme-v02.api.letsencrypt.org"
         self.__directory = None
-        self.__acount_uri = None
 
         self.__get_directory()
 
@@ -153,7 +152,7 @@ class LetsEncryptManager:
 
         self.__directory = LetsEncryptAcmeDirectory(**response.json())
 
-    def account(self, contact: str) -> None:
+    def account(self, contact: str) -> str:
         body = LetsEncryptAcmeAccountPostBody(
             terms_of_service_agreed=True,
             contact=[contact]
@@ -165,5 +164,7 @@ class LetsEncryptManager:
             body=body.model_dump(by_alias=True)
         )
 
-        self.__acount_uri = response.headers.get("location")
+        return response.headers.get("location")
 
+    def update_account(self, contact: str, account_uri: str | None = None) -> None:
+        pass

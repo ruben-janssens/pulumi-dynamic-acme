@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "pulumi_dynamic_acme"
+name = "pulumi-dynamic-acme"
 version = "0.0.1"
 description = ""
 authors = ["ruben-janssens <ruben-janssens@hotmail.com>"]
 readme = "README.md"
-packages = [{ include = "pulumi-dynamic-acme", from = "src" }]
+packages = [{ include = "pulumi_dynamic_acme", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.10"
