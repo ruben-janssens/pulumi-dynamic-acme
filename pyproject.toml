@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "pulumi_dynamic_acme"
+version = "0.0.1"
+description = ""
+authors = ["ruben-janssens <ruben-janssens@hotmail.com>"]
+readme = "README.md"
+packages = [{ include = "pulumi-dynamic-acme", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pulumi = "^3.114.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
