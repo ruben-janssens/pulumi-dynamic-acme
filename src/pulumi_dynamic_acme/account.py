@@ -73,5 +73,8 @@ class LetsEncryptAccountProvider(ResourceProvider):
         )
 
 class LetsEncryptAccount(Resource):
+    account_key_pem: Output[str]
+    contact: Output[str]
+
     def __init__(self, name: str, args: LetsEncryptAccountArgs, opts: ResourceOptions | None = None) -> None:
         super().__init__(LetsEncryptAccountProvider(), name, args.model_dump(), opts)
