@@ -1,5 +1,6 @@
 import json
 import binascii
+import hashlib
 from typing import Literal, Any
 from enum import Enum
 from base64 import urlsafe_b64encode
@@ -60,12 +61,12 @@ class LetsEncryptManager:
             "n": urlsafe_b64encode(binascii.unhexlify(n.encode("utf-8"))).decode("utf-8").replace("=", ""),
             "kty": self.__KEY_TYPE
         }
+        self.__thumbprint = urlsafe_b64encode(hashlib.sha256(json.dumps(self.__public_jwk, sort_keys=True, separators=(",", ":")).encode("utf-8")).digest()).decode("utf-8").replace("=", "")
 
         self.__api_endpoint = "https://acme-v02.api.letsencrypt.org"
         self.__directory = None
 
         self.__get_directory()
-
 
     def __do_request(
         self,
@@ -106,7 +107,7 @@ class LetsEncryptManager:
         identification:  dict,
         body: dict | None = None
     ) -> Response:
-        payload_base64 = urlsafe_b64encode(json.dumps(body).encode("utf-8")).decode("utf-8").replace("=", "")
+        payload_base64 = urlsafe_b64encode(json.dumps(body).encode("utf-8")).decode("utf-8").replace("=", "") if body else ""
         nonce = self.__get_nonce()
 
         protected = {
@@ -166,5 +167,44 @@ class LetsEncryptManager:
 
         return response.headers.get("location")
 
-    def update_account(self, contact: str, account_uri: str | None = None) -> None:
+    def update_account(self, contact: str, account_uri: str) -> None:
         pass
+
+    def request_certificate(self, domain: str, account_uri: str) -> None:
+        body = LetsEncryptAcmeCertificatePostBody(
+            identifiers=[
+                LetsEncryptAcmeCertificateIdentifier(
+                    type="dns",
+                    value=domain
+                )
+            ]
+        )
+
+        order_response = self.__do_signed_post(
+            endpoint=self.__directory.new_order,
+            identification={"kid": account_uri},
+            body=body.model_dump(by_alias=True)
+        )
+
+        response = self.__do_signed_post(
+            endpoint=order_response.json()["authorizations"][0],
+            identification={"kid": account_uri}
+        )
+
+        challenge = [challenge for challenge in response.json()["challenges"] if challenge["type"] == "dns-01"][0]
+        
+        txt_record_value = f"{challenge['token']}.{self.__thumbprint}"
+        txt_record = f"_acme-challenge.{domain}"
+
+        print(txt_record)
+        print(txt_record_value)
+        print(response.json())
+
+        response = self.__do_signed_post(
+            endpoint=challenge["url"],
+            identification={"kid": account_uri},
+            body={}
+        )
+
+        print(response.json())
+
