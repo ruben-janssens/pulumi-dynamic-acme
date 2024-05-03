@@ -1,15 +1,18 @@
 import json
-import binascii
+import time
 import hashlib
-from typing import Literal, Any
+import binascii
 from enum import Enum
+from typing import Literal
 from base64 import urlsafe_b64encode
-from pydantic import BaseModel, Field, AnyHttpUrl, EmailStr, field_serializer
 from httpx import get, post, head, Response
+from pydantic import BaseModel, Field, AnyHttpUrl, EmailStr, field_serializer
 
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from cryptography import x509
+from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from cryptography.hazmat.primitives.asymmetric.padding import PKCS1v15
 
 
@@ -48,14 +51,14 @@ class LetsEncryptManager:
     __KEY_TYPE = "RSA"
     __ALGORITHM = "RS256"
 
-    def __init__(self, rsa_pem_key: str) -> None:
-        self.__rsa_pem_key = rsa_pem_key
+    def __init__(self, rsa_account_pem_key: str) -> None:
+        self.__rsa_account_pem_key = rsa_account_pem_key
 
-        self.__rsa_private_key: RSAPrivateKey = load_pem_private_key(self.__rsa_pem_key.encode("utf-8"), password=None)
-        self.__rsa_public_key = self.__rsa_private_key.public_key()
-        e = "{0:x}".format(self.__rsa_public_key.public_numbers().e)
+        self.__rsa_account_private_key: RSAPrivateKey = load_pem_private_key(self.__rsa_account_pem_key.encode("utf-8"), password=None)
+        self.__rsa_account_public_key = self.__rsa_account_private_key.public_key()
+        e = "{0:x}".format(self.__rsa_account_public_key.public_numbers().e)
         e = f"0{e}" if len(e) % 2 else e
-        n = "{0:x}".format(self.__rsa_public_key.public_numbers().n)
+        n = "{0:x}".format(self.__rsa_account_public_key.public_numbers().n)
         self.__public_jwk = {
             "e": urlsafe_b64encode(binascii.unhexlify(e.encode("utf-8"))).decode("utf-8").replace("=", ""),
             "n": urlsafe_b64encode(binascii.unhexlify(n.encode("utf-8"))).decode("utf-8").replace("=", ""),
@@ -107,7 +110,7 @@ class LetsEncryptManager:
         identification:  dict,
         body: dict | None = None
     ) -> Response:
-        payload_base64 = urlsafe_b64encode(json.dumps(body).encode("utf-8")).decode("utf-8").replace("=", "") if body else ""
+        payload_base64 = urlsafe_b64encode(json.dumps(body).encode("utf-8")).decode("utf-8").replace("=", "") if body is not None else ""
         nonce = self.__get_nonce()
 
         protected = {
@@ -119,7 +122,7 @@ class LetsEncryptManager:
 
         protected_base64 = urlsafe_b64encode(json.dumps(protected).encode("utf-8")).decode("utf-8").replace("=", "")
 
-        signature = self.__rsa_private_key.sign(
+        signature = self.__rsa_account_private_key.sign(
             data=f"{protected_base64}.{payload_base64}".encode("utf-8"),
             padding=PKCS1v15(),
             algorithm=hashes.SHA256()
@@ -170,7 +173,7 @@ class LetsEncryptManager:
     def update_account(self, contact: str, account_uri: str) -> None:
         pass
 
-    def request_certificate(self, domain: str, account_uri: str) -> None:
+    def request_dns_challenge(self, domain: str, account_uri: str) -> None:
         body = LetsEncryptAcmeCertificatePostBody(
             identifiers=[
                 LetsEncryptAcmeCertificateIdentifier(
@@ -192,19 +195,94 @@ class LetsEncryptManager:
         )
 
         challenge = [challenge for challenge in response.json()["challenges"] if challenge["type"] == "dns-01"][0]
-        
-        txt_record_value = f"{challenge['token']}.{self.__thumbprint}"
-        txt_record = f"_acme-challenge.{domain}"
 
-        print(txt_record)
-        print(txt_record_value)
-        print(response.json())
+        txt_record_value = urlsafe_b64encode(hashlib.sha256(f"{challenge['token']}.{self.__thumbprint}".encode("utf-8")).digest()).decode("utf-8").replace("=", "")
+        txt_record = f"_acme-challenge.{domain}."
 
+        return f"{txt_record} 300 IN TXT \"{txt_record_value}\"", order_response.headers.get("Location")
+
+    def get_dns_challenge_order(self, order_url: str, account_uri: str) -> None:
+        order_response = self.__do_signed_post(
+            endpoint=order_url,
+            identification={"kid": account_uri}
+        )
+        print(order_response.json())
+
+    def validate_dns_challenge(self, domain: str, order_url: str, certificate_signing_pem_key: str, account_uri: str) -> None:
+        rsa_signing_private_key: RSAPrivateKey = load_pem_private_key(certificate_signing_pem_key.encode("utf-8"), password=None)
+
+        # Get order details back
+        order_response = self.__do_signed_post(
+            endpoint=order_url,
+            identification={"kid": account_uri}
+        )
+        # Get authorization information
         response = self.__do_signed_post(
+            endpoint=order_response.json()["authorizations"][0],
+            identification={"kid": account_uri}
+        )
+        # Get DNS-01 challenge
+        challenge = [challenge for challenge in response.json()["challenges"] if challenge["type"] == "dns-01"][0]
+
+        # Request validation of challenge
+        challenge_response = self.__do_signed_post(
             endpoint=challenge["url"],
             identification={"kid": account_uri},
             body={}
         )
+        # Wait until status is no longer pending
+        attempts = 0
+        while challenge_response.json()["status"] in ["pending"]:
+            attempts += 1
+            if attempts > (3600 / 5):  # ~1 hour max
+                raise Exception("Timed out waiting for valid status for challenge.")
+            challenge_response = self.__do_signed_post(
+                endpoint=challenge["url"],
+                identification={"kid": account_uri}
+            )
+            print(challenge_response.json())
+            time.sleep(5)
+        if challenge_response.json()["status"] != "valid":
+            raise Exception("Challenge is not valid. Validate the TXT record name and value.")
 
-        print(response.json())
+        csr = x509.CertificateSigningRequestBuilder().subject_name(
+            name=x509.Name(
+                [
+                    x509.NameAttribute(
+                        oid=NameOID.COMMON_NAME,
+                        value=domain
+                    )
+                ]
+            )
+        ).sign(private_key=rsa_signing_private_key, algorithm=hashes.SHA256())
 
+        self.__do_signed_post(
+            endpoint=order_response.json()["finalize"],
+            identification={"kid": account_uri},
+            body={
+                "csr": urlsafe_b64encode(csr.public_bytes(encoding=Encoding.DER)).decode("utf-8").replace("=", "")
+            }
+        )
+
+        # Wait until status is no longer pending
+        attempts = 0
+        while order_response.json()["status"] in ["pending", "processing", "ready"]:
+            attempts += 1
+            if attempts > (3600 / 5):  # ~1 hour max
+                raise Exception("Timed out waiting for valid status for order.")
+            order_response = self.__do_signed_post(
+                endpoint=order_url,
+                identification={"kid": account_uri}
+            )
+
+            time.sleep(5)
+        if order_response.json()["status"] != "valid":
+            raise Exception("Order is not valid.")
+
+
+        response = self.__do_signed_post(
+            endpoint=response.json()["certificate"],
+            identification={"kid": account_uri}
+        )
+
+        print(response.text)
