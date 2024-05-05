@@ -156,19 +156,27 @@ class LetsEncryptManager:
 
         self.__directory = LetsEncryptAcmeDirectory(**response.json())
 
-    def account(self, contact: str) -> str:
-        body = LetsEncryptAcmeAccountPostBody(
-            terms_of_service_agreed=True,
-            contact=[contact]
-        )
+    def __account(self, contact: str | None = None) -> str:
+        body = {}
+        if contact:
+            body = LetsEncryptAcmeAccountPostBody(
+                terms_of_service_agreed=True,
+                contact=[contact]
+            ).model_dump(by_alias=True)
 
         response = self.__do_signed_post(
             endpoint=self.__directory.new_account,
             identification={"jwk": self.__public_jwk},
-            body=body.model_dump(by_alias=True)
+            body=body
         )
 
         return response.headers.get("location")
+
+    def create_account(self, contact: str) -> str:
+        return self.__account(contact=contact)
+
+    def get_account(self) -> str:
+        return self.__account()
 
     def update_account(self, contact: str, account_uri: str) -> None:
         pass
@@ -199,17 +207,17 @@ class LetsEncryptManager:
         txt_record_value = urlsafe_b64encode(hashlib.sha256(f"{challenge['token']}.{self.__thumbprint}".encode("utf-8")).digest()).decode("utf-8").replace("=", "")
         txt_record = f"_acme-challenge.{domain}."
 
-        return f"{txt_record} 300 IN TXT \"{txt_record_value}\"", order_response.headers.get("Location")
+        return txt_record, txt_record_value, order_response.headers.get("Location")
 
-    def get_dns_challenge_order(self, order_url: str, account_uri: str) -> None:
+    def get_order(self, order_url: str, account_uri: str) -> None:
         order_response = self.__do_signed_post(
             endpoint=order_url,
             identification={"kid": account_uri}
         )
-        print(order_response.json())
+        return order_response.json()
 
-    def validate_dns_challenge(self, domain: str, order_url: str, certificate_signing_pem_key: str, account_uri: str) -> None:
-        rsa_signing_private_key: RSAPrivateKey = load_pem_private_key(certificate_signing_pem_key.encode("utf-8"), password=None)
+    def validate_dns_challenge(self, order_url: str, certificate_signing_key_pem: str, account_uri: str) -> None:
+        rsa_signing_private_key: RSAPrivateKey = load_pem_private_key(certificate_signing_key_pem.encode("utf-8"), password=None)
 
         # Get order details back
         order_response = self.__do_signed_post(
@@ -217,12 +225,12 @@ class LetsEncryptManager:
             identification={"kid": account_uri}
         )
         # Get authorization information
-        response = self.__do_signed_post(
+        authorization_response = self.__do_signed_post(
             endpoint=order_response.json()["authorizations"][0],
             identification={"kid": account_uri}
         )
         # Get DNS-01 challenge
-        challenge = [challenge for challenge in response.json()["challenges"] if challenge["type"] == "dns-01"][0]
+        challenge = [challenge for challenge in authorization_response.json()["challenges"] if challenge["type"] == "dns-01"][0]
 
         # Request validation of challenge
         challenge_response = self.__do_signed_post(
@@ -232,7 +240,7 @@ class LetsEncryptManager:
         )
         # Wait until status is no longer pending
         attempts = 0
-        while challenge_response.json()["status"] in ["pending"]:
+        while challenge_response.json()["status"] in ["pending", "processing"]:
             attempts += 1
             if attempts > (3600 / 5):  # ~1 hour max
                 raise Exception("Timed out waiting for valid status for challenge.")
@@ -240,7 +248,6 @@ class LetsEncryptManager:
                 endpoint=challenge["url"],
                 identification={"kid": account_uri}
             )
-            print(challenge_response.json())
             time.sleep(5)
         if challenge_response.json()["status"] != "valid":
             raise Exception("Challenge is not valid. Validate the TXT record name and value.")
@@ -250,7 +257,7 @@ class LetsEncryptManager:
                 [
                     x509.NameAttribute(
                         oid=NameOID.COMMON_NAME,
-                        value=domain
+                        value=challenge_response["identifier"]["value"]
                     )
                 ]
             )
@@ -266,7 +273,7 @@ class LetsEncryptManager:
 
         # Wait until status is no longer pending
         attempts = 0
-        while order_response.json()["status"] in ["pending", "processing", "ready"]:
+        while order_response.json()["status"] in ["pending", "ready", "processing"]:
             attempts += 1
             if attempts > (3600 / 5):  # ~1 hour max
                 raise Exception("Timed out waiting for valid status for order.")
@@ -280,9 +287,19 @@ class LetsEncryptManager:
             raise Exception("Order is not valid.")
 
 
-        response = self.__do_signed_post(
-            endpoint=response.json()["certificate"],
+    def get_certificate(self, order_url: str, account_uri: str) -> str:
+        # Get order details back
+        order_response = self.__do_signed_post(
+            endpoint=order_url,
             identification={"kid": account_uri}
         )
 
-        print(response.text)
+        if not order_response.get("certificate"):
+            raise Exception("Certificate is not (yet) available for this order.")
+
+        certificate_response = self.__do_signed_post(
+            endpoint=order_response.json()["certificate"],
+            identification={"kid": account_uri}
+        )
+
+        return certificate_response.text

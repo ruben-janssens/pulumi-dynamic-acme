@@ -9,14 +9,14 @@ from pulumi.dynamic import *
 from pulumi_dynamic_acme.utilis.letsencrypt import LetsEncryptManager
 
 
-class LetsEncryptCertificateArgs(BaseModel):
+class LetsEncryptCertificateRequestArgs(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
     account_key_pem: Input[str]
-    order_url: Input[str]
+    domain: Input[str]
 
 
-class LetsEncryptCertificateProvider(ResourceProvider):
+class LetsEncryptCertificateRequestProvider(ResourceProvider):
     def create(self, args: dict) -> CreateResult:
         manager = LetsEncryptManager(
             args["account_key_pem"]
@@ -24,16 +24,21 @@ class LetsEncryptCertificateProvider(ResourceProvider):
 
         account_uri = manager.get_account()
 
-        certificate = manager.get_certificate(
-            order_url=args["order_url"],
+        record, record_value, order_url = manager.request_dns_challenge(
+            domain=args["domain"],
             account_uri=account_uri
         )
 
+        dns_import = f"{record} 300 IN TXT \"{record_value}\""
+
         return CreateResult(
-            id_=args["order_url"],
+            id_=order_url,
             outs={
                 **args,
-                "certificate": certificate
+                "order_url": order_url,
+                "record": record,
+                "record_value": record_value,
+                "dns_import": dns_import
             }
         )
 
@@ -43,8 +48,8 @@ class LetsEncryptCertificateProvider(ResourceProvider):
         if _olds["account_key_pem"] != _news["account_key_pem"]:
             replaces.append("account_key_pem")
 
-        if _olds["order_url"] != _news["order_url"]:
-            replaces.append("order_url")
+        if _olds["domain"] != _news["domain"]:
+            replaces.append("domain")
 
         return DiffResult(
             changes=changes,
@@ -54,10 +59,13 @@ class LetsEncryptCertificateProvider(ResourceProvider):
         )
 
 
-class LetsEncryptCertificate(Resource):
+class LetsEncryptCertificateRequest(Resource):
     account_key_pem: Output[str]
+    domain: Output[str]
     order_url: Output[str]
-    certificate: Output[str]
+    record: Output[str]
+    record_value: Output[str]
+    dns_import: Output[str]
 
-    def __init__(self, name: str, args: LetsEncryptCertificateArgs, opts: ResourceOptions | None = None) -> None:
-        super().__init__(LetsEncryptCertificateProvider(), name, args.model_dump(), opts)
+    def __init__(self, name: str, args: LetsEncryptCertificateRequestArgs, opts: ResourceOptions | None = None) -> None:
+        super().__init__(LetsEncryptCertificateRequestProvider(), name, args.model_dump(), opts)

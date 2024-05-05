@@ -9,14 +9,15 @@ from pulumi.dynamic import *
 from pulumi_dynamic_acme.utilis.letsencrypt import LetsEncryptManager
 
 
-class LetsEncryptCertificateArgs(BaseModel):
+class LetsEncryptCertificateValidationArgs(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
     account_key_pem: Input[str]
     order_url: Input[str]
+    certificate_signing_key_pem: Input[str]
 
 
-class LetsEncryptCertificateProvider(ResourceProvider):
+class LetsEncryptCertificateValidationProvider(ResourceProvider):
     def create(self, args: dict) -> CreateResult:
         manager = LetsEncryptManager(
             args["account_key_pem"]
@@ -24,16 +25,16 @@ class LetsEncryptCertificateProvider(ResourceProvider):
 
         account_uri = manager.get_account()
 
-        certificate = manager.get_certificate(
+        manager.validate_dns_challenge(
             order_url=args["order_url"],
+            certificate_signing_key_pem=args["certificate_signing_key_pem"],
             account_uri=account_uri
         )
 
         return CreateResult(
             id_=args["order_url"],
             outs={
-                **args,
-                "certificate": certificate
+                **args
             }
         )
 
@@ -54,10 +55,10 @@ class LetsEncryptCertificateProvider(ResourceProvider):
         )
 
 
-class LetsEncryptCertificate(Resource):
+class LetsEncryptCertificateValidation(Resource):
     account_key_pem: Output[str]
     order_url: Output[str]
-    certificate: Output[str]
+    certificate_signing_key_pem: Output[str]
 
-    def __init__(self, name: str, args: LetsEncryptCertificateArgs, opts: ResourceOptions | None = None) -> None:
-        super().__init__(LetsEncryptCertificateProvider(), name, args.model_dump(), opts)
+    def __init__(self, name: str, args: LetsEncryptCertificateValidationArgs, opts: ResourceOptions | None = None) -> None:
+        super().__init__(LetsEncryptCertificateValidationProvider(), name, args.model_dump(), opts)

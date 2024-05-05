@@ -22,12 +22,13 @@ class LetsEncryptAccountProvider(ResourceProvider):
             args["account_key_pem"]
         )
 
-        account_uri = manager.account(contact=args["contact"])
+        account_uri = manager.create_account(contact=args["contact"])
 
         return CreateResult(
             id_=account_uri,
             outs={
-                **args
+                **args,
+                "account_uri": account_uri
             }
         )
 
@@ -36,44 +37,52 @@ class LetsEncryptAccountProvider(ResourceProvider):
             args["account_key_pem"]
         )
 
-        account_uri = manager.account(contact=args["contact"])
+        account_uri = manager.get_account()
+
         return ReadResult(
             id_=account_uri,
             outs={
-                **args
+                **args,
+                "account_uri": account_uri
             }
         )
 
-    def update(self, _id: str, _olds: dict, _news: dict) -> UpdateResult:
-        manager = LetsEncryptManager(
-            _olds["account_key_pem"]
-        )
+    # def update(self, _id: str, _olds: dict, _news: dict) -> UpdateResult:
+    #     manager = LetsEncryptManager(
+    #         _olds["account_key_pem"]
+    #     )
 
-        manager.update_account(
-            contact=_news["contact"],
-            account_uri=_id
-        )
+    #     manager.update_account(
+    #         contact=_news["contact"],
+    #         account_uri=_id
+    #     )
 
-        return UpdateResult(
-            outs={
-                **_news
-            }
-        )
+    #     return UpdateResult(
+    #         outs={
+    #             **_news,
+    #             "account_uri": _id
+    #         }
+    #     )
 
     def diff(self, _id: str, _olds: dict, _news: dict) -> DiffResult:
         changes = False
         if _olds["contact"] != _news["contact"]:
             changes = True
 
+        replaces = []
+        if _olds["account_key_pem"] != _news["account_key_pem"]:
+            replaces.append("account_key_pem")
+
         return DiffResult(
             changes=changes,
-            replaces=["account_key_pem"] if _olds["account_key_pem"] != _news["account_key_pem"] else [],
+            replaces=replaces,
             stables=None,
             delete_before_replace=True
         )
 
 class LetsEncryptAccount(Resource):
     account_key_pem: Output[str]
+    account_uri: Output[str]
     contact: Output[str]
 
     def __init__(self, name: str, args: LetsEncryptAccountArgs, opts: ResourceOptions | None = None) -> None:
