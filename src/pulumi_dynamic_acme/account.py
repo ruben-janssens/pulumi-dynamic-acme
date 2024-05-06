@@ -9,7 +9,7 @@ class LetsEncryptAccountArgs:
     contact: Input[str]
 
     def __init__(self, account_key_pem: Input[str], contact: Input[str]) -> None:
-        self.account_key_pem = account_key_pem
+        self.account_key_pem = Output.secret(account_key_pem)
         self.contact = contact
 
 

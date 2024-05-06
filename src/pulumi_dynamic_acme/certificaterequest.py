@@ -9,7 +9,7 @@ class LetsEncryptCertificateRequestArgs:
     domain: Input[str]
 
     def __init__(self, account_key_pem: Input[str], domain: Input[str]) -> None:
-        self.account_key_pem = account_key_pem
+        self.account_key_pem = Output.secret(account_key_pem)
         self.domain = domain
 
 

@@ -294,7 +294,7 @@ class LetsEncryptManager:
             identification={"kid": account_uri}
         )
 
-        if not order_response.get("certificate"):
+        if not order_response.json().get("certificate"):
             raise Exception("Certificate is not (yet) available for this order.")
 
         certificate_response = self.__do_signed_post(
