@@ -197,12 +197,12 @@ class LetsEncryptManager:
             body=body.model_dump(by_alias=True)
         )
 
-        response = self.__do_signed_post(
+        authorization_response = self.__do_signed_post(
             endpoint=order_response.json()["authorizations"][0],
             identification={"kid": account_uri}
         )
 
-        challenge = [challenge for challenge in response.json()["challenges"] if challenge["type"] == "dns-01"][0]
+        challenge = [challenge for challenge in authorization_response.json()["challenges"] if challenge["type"] == "dns-01"][0]
 
         txt_record_value = urlsafe_b64encode(hashlib.sha256(f"{challenge['token']}.{self.__thumbprint}".encode("utf-8")).digest()).decode("utf-8").replace("=", "")
         txt_record = f"_acme-challenge.{domain}."
@@ -257,7 +257,7 @@ class LetsEncryptManager:
                 [
                     x509.NameAttribute(
                         oid=NameOID.COMMON_NAME,
-                        value=challenge_response["identifier"]["value"]
+                        value=challenge_response.json()["identifier"]["value"]
                     )
                 ]
             )
