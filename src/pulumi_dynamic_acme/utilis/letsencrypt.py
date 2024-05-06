@@ -257,7 +257,7 @@ class LetsEncryptManager:
                 [
                     x509.NameAttribute(
                         oid=NameOID.COMMON_NAME,
-                        value=challenge_response.json()["identifier"]["value"]
+                        value=authorization_response.json()["identifier"]["value"]
                     )
                 ]
             )
