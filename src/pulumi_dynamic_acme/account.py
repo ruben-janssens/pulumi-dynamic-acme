@@ -1,16 +1,16 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
-
 from pulumi import Input, Output, ResourceOptions
 from pulumi.dynamic import *
 
 from pulumi_dynamic_acme.utilis.letsencrypt import LetsEncryptManager
 
 
-class LetsEncryptAccountArgs(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
-
+class LetsEncryptAccountArgs:
     account_key_pem: Input[str]
-    contact: EmailStr
+    contact: Input[str]
+
+    def __init__(self, account_key_pem: Input[str], contact: Input[str]) -> None:
+        self.account_key_pem = account_key_pem
+        self.contact = contact
 
 
 class LetsEncryptAccountProvider(ResourceProvider):

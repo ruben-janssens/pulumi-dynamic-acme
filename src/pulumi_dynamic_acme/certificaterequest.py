@@ -1,16 +1,16 @@
-from pydantic import BaseModel, ConfigDict
-
 from pulumi import Input, Output, ResourceOptions
 from pulumi.dynamic import *
 
 from pulumi_dynamic_acme.utilis.letsencrypt import LetsEncryptManager
 
 
-class LetsEncryptCertificateRequestArgs(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
-
+class LetsEncryptCertificateRequestArgs:
     account_key_pem: Input[str]
     domain: Input[str]
+
+    def __init__(self, account_key_pem: Input[str], domain: Input[str]) -> None:
+        self.account_key_pem = account_key_pem
+        self.domain = domain
 
 
 class LetsEncryptCertificateRequestProvider(ResourceProvider):

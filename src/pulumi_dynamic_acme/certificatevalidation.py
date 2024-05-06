@@ -6,12 +6,15 @@ from pulumi.dynamic import *
 from pulumi_dynamic_acme.utilis.letsencrypt import LetsEncryptManager
 
 
-class LetsEncryptCertificateValidationArgs(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
-
+class LetsEncryptCertificateValidationArgs:
     account_key_pem: Input[str]
     order_url: Input[str]
     certificate_signing_key_pem: Input[str]
+
+    def __init__(self, account_key_pem: Input[str], order_url: Input[str], certificate_signing_key_pem: Input[str]) -> None:
+        self.account_key_pem = account_key_pem
+        self.order_url = order_url
+        self.certificate_signing_key_pem = certificate_signing_key_pem
 
 
 class LetsEncryptCertificateValidationProvider(ResourceProvider):

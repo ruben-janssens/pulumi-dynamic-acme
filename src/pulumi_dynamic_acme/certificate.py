@@ -1,16 +1,16 @@
-from pydantic import BaseModel, ConfigDict
-
 from pulumi import Input, Output, ResourceOptions
 from pulumi.dynamic import *
 
 from pulumi_dynamic_acme.utilis.letsencrypt import LetsEncryptManager
 
 
-class LetsEncryptCertificateArgs(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
-
+class LetsEncryptCertificateArgs:
     account_key_pem: Input[str]
     order_url: Input[str]
+
+    def __init__(self, account_key_pem: Input[str], order_url: Input[str]) -> None:
+        self.account_key_pem = account_key_pem
+        self.order_url = order_url
 
 
 class LetsEncryptCertificateProvider(ResourceProvider):
