@@ -1,7 +1,4 @@
-from pulumi.dynamic.dynamic import CreateResult, DiffResult, ReadResult, ResourceProvider, UpdateResult
-from pulumi.output import Inputs
-from pydantic import BaseModel, ConfigDict, ExtraValues
-from pydantic import EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 from pulumi import Input, Output, ResourceOptions
 from pulumi.dynamic import *
