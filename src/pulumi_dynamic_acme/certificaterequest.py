@@ -65,4 +65,4 @@ class LetsEncryptCertificateRequest(Resource):
     dns_import: Output[str]
 
     def __init__(self, name: str, args: LetsEncryptCertificateRequestArgs, opts: ResourceOptions | None = None) -> None:
-        super().__init__(LetsEncryptCertificateRequestProvider(), name, {"order_url": None, "record": None, "record_value": None, "dns_import": None, **vars(args)}, opts)
+        super().__init__(LetsEncryptCertificateRequestProvider(), f"LetsEncryptCertificateRequest:{name}", {"order_url": None, "record": None, "record_value": None, "dns_import": None, **vars(args)}, opts)

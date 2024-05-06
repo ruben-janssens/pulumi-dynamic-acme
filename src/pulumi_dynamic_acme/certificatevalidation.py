@@ -61,4 +61,4 @@ class LetsEncryptCertificateValidation(Resource):
     certificate_signing_key_pem: Output[str]
 
     def __init__(self, name: str, args: LetsEncryptCertificateValidationArgs, opts: ResourceOptions | None = None) -> None:
-        super().__init__(LetsEncryptCertificateValidationProvider(), name, {**vars(args)}, opts)
+        super().__init__(LetsEncryptCertificateValidationProvider(), f"LetsEncryptCertificateValidation:{name}", {**vars(args)}, opts)

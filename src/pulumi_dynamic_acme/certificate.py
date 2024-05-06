@@ -57,4 +57,4 @@ class LetsEncryptCertificate(Resource):
     certificate: Output[str]
 
     def __init__(self, name: str, args: LetsEncryptCertificateArgs, opts: ResourceOptions | None = None) -> None:
-        super().__init__(LetsEncryptCertificateProvider(), name, {"certificate": None, **vars(args)}, opts)
+        super().__init__(LetsEncryptCertificateProvider(), f"LetsEncryptCertificate:{name}", {"certificate": None, **vars(args)}, opts)

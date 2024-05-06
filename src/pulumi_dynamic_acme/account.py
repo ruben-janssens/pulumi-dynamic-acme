@@ -83,4 +83,4 @@ class LetsEncryptAccount(Resource):
     contact: Output[str]
 
     def __init__(self, name: str, args: LetsEncryptAccountArgs, opts: ResourceOptions | None = None) -> None:
-        super().__init__(LetsEncryptAccountProvider(), name, {"account_uri": None, **vars(args)}, opts)
+        super().__init__(LetsEncryptAccountProvider(), f"LetsEncryptAccount:{name}", {"account_uri": None, **vars(args)}, opts)
