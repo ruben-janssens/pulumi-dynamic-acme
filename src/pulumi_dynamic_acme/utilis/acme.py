@@ -38,7 +38,8 @@ class AcmeManager:
 
     def __init__(
         self,
-        rsa_account_pem_key: str
+        rsa_account_pem_key: str,
+        acme_endpoint: str = "https://acme-v02.api.letsencrypt.org"
     ) -> None:
         """"""
         self.__rsa_account_pem_key = rsa_account_pem_key
@@ -55,7 +56,7 @@ class AcmeManager:
         )
         self.__thumbprint = self.__urlsafe_base64(hashlib.sha256(json.dumps(self.__public_jwk.model_dump(by_alias=True), sort_keys=True, separators=(",", ":")).encode("utf-8")).digest())
 
-        self.__api_endpoint = "https://acme-v02.api.letsencrypt.org"
+        self.__api_endpoint = acme_endpoint
         self.__directory = None
 
         self.__get_directory()
