@@ -1,7 +1,7 @@
 from pulumi import Input, Output, ResourceOptions
-from pulumi.dynamic import *
+from pulumi.dynamic import *  # noqa: F403
 
-from pulumi_dynamic_acme.utilis.letsencrypt import LetsEncryptManager
+from pulumi_dynamic_acme.utilis.acme import AcmeManager
 
 
 class LetsEncryptAccountArgs:
@@ -15,51 +15,34 @@ class LetsEncryptAccountArgs:
 
 class LetsEncryptAccountProvider(ResourceProvider):
     def create(self, args: dict) -> CreateResult:
-        manager = LetsEncryptManager(
+        manager = AcmeManager(
             args["account_key_pem"]
         )
 
-        account_uri = manager.create_account(contact=args["contact"])
+        account = manager.create_account(contact=[args["contact"]])
 
         return CreateResult(
-            id_=account_uri,
+            id_=account.url,
             outs={
                 **args,
-                "account_uri": account_uri
+                "account_uri": account.url
             }
         )
 
     def read(self, id_: str, args: dict) -> ReadResult:
-        manager = LetsEncryptManager(
+        manager = AcmeManager(
             args["account_key_pem"]
         )
 
-        account_uri = manager.get_account()
+        account = manager.get_account()
 
         return ReadResult(
-            id_=account_uri,
+            id_=account.url,
             outs={
                 **args,
-                "account_uri": account_uri
+                "account_uri": account.url
             }
         )
-
-    # def update(self, _id: str, _olds: dict, _news: dict) -> UpdateResult:
-    #     manager = LetsEncryptManager(
-    #         _olds["account_key_pem"]
-    #     )
-
-    #     manager.update_account(
-    #         contact=_news["contact"],
-    #         account_uri=_id
-    #     )
-
-    #     return UpdateResult(
-    #         outs={
-    #             **_news,
-    #             "account_uri": _id
-    #         }
-    #     )
 
     def diff(self, _id: str, _olds: dict, _news: dict) -> DiffResult:
         changes = False
@@ -76,6 +59,7 @@ class LetsEncryptAccountProvider(ResourceProvider):
             stables=None,
             delete_before_replace=True
         )
+
 
 class LetsEncryptAccount(Resource):
     account_key_pem: Output[str]
