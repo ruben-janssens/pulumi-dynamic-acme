@@ -1,7 +1,7 @@
 from pulumi import Input, Output, ResourceOptions
-from pulumi.dynamic import *
+from pulumi.dynamic import *  # noqa: F403
 
-from pulumi_dynamic_acme.utilis.letsencrypt import LetsEncryptManager
+from pulumi_dynamic_acme.utilis.acme import AcmeManager
 
 
 class LetsEncryptCertificateArgs:
@@ -15,15 +15,15 @@ class LetsEncryptCertificateArgs:
 
 class LetsEncryptCertificateProvider(ResourceProvider):
     def create(self, args: dict) -> CreateResult:
-        manager = LetsEncryptManager(
+        manager = AcmeManager(
             args["account_key_pem"]
         )
 
-        account_uri = manager.get_account()
+        account = manager.get_account()
 
         certificate = manager.get_certificate(
             order_url=args["order_url"],
-            account_uri=account_uri
+            account_uri=account.url
         )
 
         return CreateResult(

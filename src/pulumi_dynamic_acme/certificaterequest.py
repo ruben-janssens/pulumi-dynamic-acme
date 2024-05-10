@@ -1,7 +1,7 @@
 from pulumi import Input, Output, ResourceOptions
-from pulumi.dynamic import *
+from pulumi.dynamic import *  # noqa: F403
 
-from pulumi_dynamic_acme.utilis.letsencrypt import LetsEncryptManager
+from pulumi_dynamic_acme.utilis.acme import AcmeManager
 
 
 class LetsEncryptCertificateRequestArgs:
@@ -15,15 +15,15 @@ class LetsEncryptCertificateRequestArgs:
 
 class LetsEncryptCertificateRequestProvider(ResourceProvider):
     def create(self, args: dict) -> CreateResult:
-        manager = LetsEncryptManager(
+        manager = AcmeManager(
             args["account_key_pem"]
         )
 
-        account_uri = manager.get_account()
+        account = manager.get_account()
 
         record, record_value, order_url = manager.request_dns_challenge(
             domain=args["domain"],
-            account_uri=account_uri
+            account_uri=account.url
         )
 
         dns_import = f"{record} 300 IN TXT \"{record_value}\""
