@@ -1,5 +1,6 @@
 from pulumi import Input, Output, ResourceOptions
-from pulumi.dynamic import *  # noqa: F403
+from pulumi.dynamic import *
+from pulumi.dynamic.dynamic import UpdateResult  # noqa: F403
 
 from pulumi_dynamic_acme.utilis.acme import AcmeManager
 
@@ -40,6 +41,23 @@ class LetsEncryptAccountProvider(ResourceProvider):
             id_=account.url,
             outs={
                 **args,
+                "account_uri": account.url
+            }
+        )
+
+    def update(self, _id: str, _olds: dict, _news: dict) -> UpdateResult:
+        manager = AcmeManager(
+            _news["account_key_pem"]
+        )
+
+        account = manager.update_account(
+            contact=[_news["contact"]],
+            account_url=_id
+        )
+
+        return UpdateResult(
+            outs={
+                **_news,
                 "account_uri": account.url
             }
         )

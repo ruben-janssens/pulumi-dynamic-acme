@@ -21,6 +21,7 @@ from pulumi_dynamic_acme.models import (
     AcmeDirectory,
     AcmeAccount,
     AcmeNewAccountBody,
+    AcmeUpdateAccountBody,
     AcmeOrder,
     AcmeNewOrderBody,
     AcmeOrderStatus,
@@ -150,7 +151,7 @@ class AcmeManager:
         )
         self.__directory = AcmeDirectory(**response.json())
 
-    def __account(self, body: dict) -> AcmeAccount:
+    def __new_account(self, body: dict) -> AcmeAccount:
         response = self.__do_signed_post(
             endpoint=self.__directory.new_account,
             identification=AcmeManagerIdentification(jwk=self.__public_jwk),
@@ -163,17 +164,32 @@ class AcmeManager:
         )
 
     def create_account(self, contact: list[str]) -> AcmeAccount:
-        return self.__account(
+        return self.__new_account(
             body=AcmeNewAccountBody(
                 contact=contact
             ).model_dump(by_alias=True)
         )
 
     def get_account(self) -> AcmeAccount:
-        return self.__account(body={})
+        return self.__new_account(
+            body=AcmeNewAccountBody(
+                only_return_existing=True
+            ).model_dump(by_alias=True)
+        )
 
-    def update_account(self, contact: str, account_url: str) -> None:
-        pass
+    def update_account(self, contact: list[str], account_url: str) -> AcmeAccount:
+        response = self.__do_signed_post(
+            endpoint=self.__directory.new_account,
+            identification=AcmeManagerIdentification(kid=account_url),
+            body=AcmeUpdateAccountBody(
+                contact=contact
+            ).model_dump(by_alias=True)
+        )
+
+        return AcmeAccount(
+            url=response.headers.get("Location"),
+            **response.json()
+        )
 
     def delete_account(self, account_url: str) -> None:
         pass

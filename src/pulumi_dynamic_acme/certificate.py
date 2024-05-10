@@ -1,6 +1,8 @@
 from pulumi import Input, Output, ResourceOptions
 from pulumi.dynamic import *  # noqa: F403
 
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PrivateFormat, NoEncryption
+
 from pulumi_dynamic_acme.utilis.acme import AcmeManager
 
 
@@ -58,3 +60,19 @@ class LetsEncryptCertificate(Resource):
 
     def __init__(self, name: str, args: LetsEncryptCertificateArgs, opts: ResourceOptions | None = None) -> None:
         super().__init__(LetsEncryptCertificateProvider(), f"LetsEncryptCertificate:{name}", {"certificate": Output.secret(""), **vars(args)}, opts)
+
+    def __private_key_private_bytes(self, private_key: str) -> str:
+        return load_pem_private_key(
+            data=private_key.encode("utf-8"),
+            password=None
+        ).private_bytes(
+            encoding=Encoding.PEM,
+            format=PrivateFormat.PKCS8,
+            encryption_algorithm=NoEncryption()
+        ).decode("utf-8")
+
+    def azure_key_vault_certificate(
+        self,
+        certificate_signing_key_pem: Input[str]
+    ) -> Output[str]:
+        return Output.concat(Output.from_input(certificate_signing_key_pem).apply(lambda key: self.__private_key_private_bytes(private_key=key)), self.certificate)
