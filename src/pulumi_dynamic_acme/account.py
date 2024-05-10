@@ -1,6 +1,5 @@
 from pulumi import Input, Output, ResourceOptions
 from pulumi.dynamic import *  # noqa: F403
-from pulumi.dynamic.dynamic import UpdateResult
 
 from pulumi_dynamic_acme.utilis.acme import AcmeManager
 
