@@ -25,7 +25,7 @@ class LetsEncryptAccountProvider(ResourceProvider):
             id_=account.url,
             outs={
                 **args,
-                "account_uri": account.url
+                "account_url": account.url
             }
         )
 
@@ -40,7 +40,7 @@ class LetsEncryptAccountProvider(ResourceProvider):
             id_=account.url,
             outs={
                 **args,
-                "account_uri": account.url
+                "account_url": account.url
             }
         )
 
@@ -63,8 +63,8 @@ class LetsEncryptAccountProvider(ResourceProvider):
 
 class LetsEncryptAccount(Resource):
     account_key_pem: Output[str]
-    account_uri: Output[str]
+    account_url: Output[str]
     contact: Output[str]
 
     def __init__(self, name: str, args: LetsEncryptAccountArgs, opts: ResourceOptions | None = None) -> None:
-        super().__init__(LetsEncryptAccountProvider(), f"LetsEncryptAccount:{name}", {"account_uri": None, **vars(args)}, opts)
+        super().__init__(LetsEncryptAccountProvider(), f"LetsEncryptAccount:{name}", {"account_url": None, **vars(args)}, opts)

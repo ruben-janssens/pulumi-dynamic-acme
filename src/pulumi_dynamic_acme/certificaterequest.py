@@ -23,7 +23,7 @@ class LetsEncryptCertificateRequestProvider(ResourceProvider):
 
         record, record_value, order_url = manager.request_dns_challenge(
             domain=args["domain"],
-            account_uri=account.url
+            account_url=account.url
         )
 
         dns_import = f"{record} 300 IN TXT \"{record_value}\""

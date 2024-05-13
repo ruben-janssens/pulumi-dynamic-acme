@@ -23,7 +23,7 @@ class LetsEncryptCertificateProvider(ResourceProvider):
 
         certificate = manager.get_certificate(
             order_url=args["order_url"],
-            account_uri=account.url
+            account_url=account.url
         )
 
         return CreateResult(

@@ -26,7 +26,7 @@ class LetsEncryptCertificateValidationProvider(ResourceProvider):
         manager.validate_dns_challenge(
             order_url=args["order_url"],
             certificate_signing_key_pem=args["certificate_signing_key_pem"],
-            account_uri=account.url
+            account_url=account.url
         )
 
         return CreateResult(
