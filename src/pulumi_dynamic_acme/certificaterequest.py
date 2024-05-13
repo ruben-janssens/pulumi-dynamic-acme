@@ -21,20 +21,20 @@ class LetsEncryptCertificateRequestProvider(ResourceProvider):
 
         account = manager.get_account()
 
-        record, record_value, order_url = manager.request_dns_challenge(
+        dns_challenge = manager.request_dns_challenge(
             domain=args["domain"],
             account_url=account.url
         )
 
-        dns_import = f"{record} 300 IN TXT \"{record_value}\""
+        dns_import = f"{dns_challenge.records[0].record} 300 IN TXT \"{dns_challenge.records[0].value}\""
 
         return CreateResult(
-            id_=order_url,
+            id_=dns_challenge.order_url,
             outs={
                 **args,
-                "order_url": order_url,
-                "record": record,
-                "record_value": record_value,
+                "order_url": dns_challenge.order_url,
+                "record": dns_challenge.records[0].record,
+                "record_value": dns_challenge.records[0].value,
                 "dns_import": dns_import
             }
         )
