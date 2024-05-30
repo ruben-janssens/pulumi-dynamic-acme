@@ -6,3 +6,4 @@ from .order import AcmeOrder, AcmeNewOrderBody, AcmeOrderStatus
 from .authorization import AcmeAuthorization, AcmeAuthorizationStatus
 from .challenge import AcmeChallenge, AcmeChallengeStatus, AcmeChallengeType
 from .shared import AcmeIdentifier
+from .certificate import AcmeCertificate, AcmeCertificateType

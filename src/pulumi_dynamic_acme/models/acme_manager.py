@@ -31,7 +31,7 @@ class AcmeManagerIdentification(BaseModel):
     jwk: AcmeManagerJwk | None = Field(default=None)
     kid: HttpUrlString | None = Field(default=None)
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def only_one_is_set(self) -> 'AcmeManagerIdentification':
         if (self.jwk is None and self.kid is None) or (self.jwk is not None and self.kid is not None):
             raise ValueError("Only one of `jwk` or `kid` may be provided for identification.")
