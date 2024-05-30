@@ -44,6 +44,23 @@ class LetsEncryptAccountProvider(ResourceProvider):
             }
         )
 
+    def update(self, _id: str, _olds: dict, _news: dict) -> UpdateResult:
+        manager = AcmeManager(
+            _news["account_key_pem"]
+        )
+
+        account = manager.update_account(
+            contact=[_news["contact"]],
+            account_url=_id
+        )
+
+        return UpdateResult(
+            outs={
+                **_news,
+                "account_uri": account.url
+            }
+        )
+
     def diff(self, _id: str, _olds: dict, _news: dict) -> DiffResult:
         changes = False
         if _olds["contact"] != _news["contact"]:

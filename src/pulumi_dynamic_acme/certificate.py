@@ -2,15 +2,23 @@ from pulumi import Input, Output, ResourceOptions
 from pulumi.dynamic import *  # noqa: F403
 
 from pulumi_dynamic_acme.utilis.acme import AcmeManager
+from pulumi_dynamic_acme.models import AcmeCertificateType
 
 
 class LetsEncryptCertificateArgs:
     account_key_pem: Input[str]
     order_url: Input[str]
+    certificate_signing_key_pem: Input[str] | None
+    certificate_type: Input[AcmeCertificateType] | None
 
-    def __init__(self, account_key_pem: Input[str], order_url: Input[str]) -> None:
+    def __init__(self, account_key_pem: Input[str], order_url: Input[str], certificate_signing_key_pem: Input[str] | None = None, certificate_type: AcmeCertificateType | None = None) -> None:
         self.account_key_pem = Output.secret(account_key_pem)
         self.order_url = order_url
+        if certificate_signing_key_pem:
+            self.certificate_signing_key_pem = Output.secret(certificate_signing_key_pem)
+        else:
+            self.certificate_signing_key_pem = certificate_signing_key_pem
+        self.certificate_type = certificate_type
 
 
 class LetsEncryptCertificateProvider(ResourceProvider):
@@ -23,7 +31,9 @@ class LetsEncryptCertificateProvider(ResourceProvider):
 
         certificate = manager.get_certificate(
             order_url=args["order_url"],
-            account_url=account.url
+            account_url=account.url,
+            certificate_signing_key_pem=args["certificate_signing_key_pem"],
+            certificate_type=args["certificate_type"]
         )
 
         return CreateResult(

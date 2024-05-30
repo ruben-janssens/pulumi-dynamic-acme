@@ -2,6 +2,7 @@ import json
 import time
 import hashlib
 import binascii
+from dns import resolver, rdatatype
 from base64 import urlsafe_b64encode
 from httpx import get, post, head, Response
 
@@ -21,14 +22,18 @@ from pulumi_dynamic_acme.models import (
     AcmeDirectory,
     AcmeAccount,
     AcmeNewAccountBody,
+    AcmeUpdateAccountBody,
     AcmeOrder,
     AcmeNewOrderBody,
     AcmeOrderStatus,
     AcmeAuthorization,
+    AcmeAuthorizationStatus,
     AcmeChallenge,
     AcmeChallengeType,
     AcmeChallengeStatus,
-    AcmeIdentifier
+    AcmeIdentifier,
+    AcmeCertificate,
+    AcmeCertificateType
 )
 
 
@@ -150,7 +155,7 @@ class AcmeManager:
         )
         self.__directory = AcmeDirectory(**response.json())
 
-    def __account(self, body: dict) -> AcmeAccount:
+    def __new_account(self, body: dict) -> AcmeAccount:
         response = self.__do_signed_post(
             endpoint=self.__directory.new_account,
             identification=AcmeManagerIdentification(jwk=self.__public_jwk),
@@ -163,17 +168,32 @@ class AcmeManager:
         )
 
     def create_account(self, contact: list[str]) -> AcmeAccount:
-        return self.__account(
+        return self.__new_account(
             body=AcmeNewAccountBody(
                 contact=contact
             ).model_dump(by_alias=True)
         )
 
     def get_account(self) -> AcmeAccount:
-        return self.__account(body={})
+        return self.__new_account(
+            body=AcmeNewAccountBody(
+                only_return_existing=True
+            ).model_dump(by_alias=True)
+        )
 
-    def update_account(self, contact: str, account_url: str) -> None:
-        pass
+    def update_account(self, contact: list[str], account_url: str) -> AcmeAccount:
+        response = self.__do_signed_post(
+            endpoint=self.__directory.new_account,
+            identification=AcmeManagerIdentification(kid=account_url),
+            body=AcmeUpdateAccountBody(
+                contact=contact
+            ).model_dump(by_alias=True)
+        )
+
+        return AcmeAccount(
+            url=response.headers.get("Location"),
+            **response.json()
+        )
 
     def delete_account(self, account_url: str) -> None:
         pass
@@ -243,48 +263,74 @@ class AcmeManager:
         if len(order.authorizations) != 1:
             raise Exception("This does not have a single domain! Not continuing with validation!")
 
+        if order.status is AcmeOrderStatus.INVALID:
+            raise Exception("Order is not valid, create a new order.")
+
         authorization = self.__get_authorization(authorization_url=order.authorizations[0], account_url=account_url)
-        challenge = authorization.challenges.get(AcmeChallengeType.DNS_01)
 
-        # Request validation of challenge
-        challenge = AcmeChallenge(**self.__do_signed_post(
-            endpoint=challenge.url,
-            identification=AcmeManagerIdentification(kid=account_url),
-            body={}
-        ).json())
+        if order.status is AcmeOrderStatus.PENDING:
+            if authorization.status in [AcmeAuthorizationStatus.EXPIRED, AcmeAuthorizationStatus.DEACTIVATED, AcmeAuthorizationStatus.INVALID, AcmeAuthorizationStatus.REVOKED]:
+                raise Exception(f"Authorization is not in a valid or pending state, start a new order for the domain {authorization.identifier.value}.")
+            challenge = authorization.challenges.get(AcmeChallengeType.DNS_01)
 
-        # Wait until validated
-        attempts = 0
-        while challenge.status in [AcmeChallengeStatus.PENDING, AcmeChallengeStatus.PROCESSING]:
-            attempts += 1
-            if attempts > (3600 / 5):  # ~1 hour max
-                raise Exception("Timed out waiting for valid status for challenge.")
+            # Check if TXT record is available
+            attempts = 0
+            while True:
+                attempts += 1
+                if attempts > (3600 / 5):  # ~1 hour max
+                    raise Exception("Timed out waiting for TXT record to become available.")
+                try:
+                    resolver.resolve(
+                        qname=f"_acme-challenge.{authorization.identifier.value}",
+                        rdtype=rdatatype.TXT
+                    )
+                    break
+                except (resolver.NoAnswer, resolver.NXDOMAIN):
+                    time.sleep(5)
+
+            # Request validation of challenge
             challenge = AcmeChallenge(**self.__do_signed_post(
                 endpoint=challenge.url,
                 identification=AcmeManagerIdentification(kid=account_url),
+                body={}
             ).json())
-            time.sleep(5)
-        if challenge.status is not AcmeChallengeStatus.VALID:
-            raise Exception("Challenge is not valid. Validate the TXT record name and value.")
 
-        csr = x509.CertificateSigningRequestBuilder().subject_name(
-            name=x509.Name(
-                [
-                    x509.NameAttribute(
-                        oid=NameOID.COMMON_NAME,
-                        value=authorization.identifier.value
-                    )
-                ]
+            # Wait until validated
+            attempts = 0
+            while challenge.status in [AcmeChallengeStatus.PENDING, AcmeChallengeStatus.PROCESSING]:
+                attempts += 1
+                if attempts > (3600 / 5):  # ~1 hour max
+                    raise Exception("Timed out waiting for valid status for challenge.")
+                challenge = AcmeChallenge(**self.__do_signed_post(
+                    endpoint=challenge.url,
+                    identification=AcmeManagerIdentification(kid=account_url),
+                ).json())
+                time.sleep(5)
+            if challenge.status is not AcmeChallengeStatus.VALID:
+                raise Exception("Challenge is not valid. Validate the TXT record name and value.")
+
+        order = self.get_order(order_url=order_url, account_url=account_url)
+        if order.status is AcmeOrderStatus.READY:
+            # Start finalizing
+            csr = x509.CertificateSigningRequestBuilder().subject_name(
+                name=x509.Name(
+                    [
+                        x509.NameAttribute(
+                            oid=NameOID.COMMON_NAME,
+                            value=authorization.identifier.value
+                        )
+                    ]
+                )
+            ).sign(private_key=rsa_signing_private_key, algorithm=hashes.SHA256())
+
+            # Rquest finalization
+            self.__do_signed_post(
+                endpoint=order.finalize,
+                identification=AcmeManagerIdentification(kid=account_url),
+                body={
+                    "csr": self.__urlsafe_base64(csr.public_bytes(encoding=Encoding.DER))
+                }
             )
-        ).sign(private_key=rsa_signing_private_key, algorithm=hashes.SHA256())
-
-        self.__do_signed_post(
-            endpoint=order.finalize,
-            identification=AcmeManagerIdentification(kid=account_url),
-            body={
-                "csr": self.__urlsafe_base64(csr.public_bytes(encoding=Encoding.DER))
-            }
-        )
 
         # Wait until validated
         attempts = 0
@@ -297,16 +343,20 @@ class AcmeManager:
         if order.status is not AcmeOrderStatus.VALID:
             raise Exception("Order is not valid.")
 
-    def get_certificate(self, order_url: str, account_url: str) -> str | None:
+    def get_certificate(self, order_url: str, account_url: str, certificate_signing_key_pem: str | None = None, certificate_type: AcmeCertificateType = AcmeCertificateType.PLAIN) -> str | None:
         """ Get certificate of a validated order """
         order = self.get_order(order_url=order_url, account_url=account_url)
 
         if not order.certificate:
             return None
 
-        certificate_response = self.__do_signed_post(
-            endpoint=order.certificate,
-            identification=AcmeManagerIdentification(kid=account_url)
+        certificate = AcmeCertificate(
+            certificate=self.__do_signed_post(
+                endpoint=order.certificate,
+                identification=AcmeManagerIdentification(kid=account_url)
+            ).text,
+            certificate_signing_key_pem=certificate_signing_key_pem,
+            type=certificate_type
         )
 
-        return certificate_response.text
+        return certificate.certificate
