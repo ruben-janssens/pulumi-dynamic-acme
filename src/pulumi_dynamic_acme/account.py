@@ -70,6 +70,8 @@ class LetsEncryptAccountProvider(ResourceProvider):
         if _olds["account_key_pem"] != _news["account_key_pem"]:
             replaces.append("account_key_pem")
 
+        changes = True if replaces else changes
+
         return DiffResult(
             changes=changes,
             replaces=replaces,

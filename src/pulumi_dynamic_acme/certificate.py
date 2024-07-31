@@ -53,6 +53,8 @@ class LetsEncryptCertificateProvider(ResourceProvider):
         if _olds["order_url"] != _news["order_url"]:
             replaces.append("order_url")
 
+        changes = True if replaces else changes
+
         return DiffResult(
             changes=changes,
             replaces=replaces,
