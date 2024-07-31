@@ -40,6 +40,12 @@ class LetsEncryptCertificateRequestProvider(ResourceProvider):
         )
 
     def diff(self, _id: str, _olds: dict, _news: dict) -> DiffResult:
+        manager = AcmeManager(
+            _olds["account_key_pem"]
+        )
+
+        account = manager.get_account()
+
         changes = False
         replaces = []
         if _olds["account_key_pem"] != _news["account_key_pem"]:
@@ -47,6 +53,15 @@ class LetsEncryptCertificateRequestProvider(ResourceProvider):
 
         if _olds["domain"] != _news["domain"]:
             replaces.append("domain")
+
+        # If order no longer exists it is deemed expired
+        try:
+            manager.get_order(order_url=_olds["order_url"], account_url=account.url)
+        except Exception:
+            # Add extra checks to see if the exception is a 404 order not found
+            replaces.append("order_url")
+
+        changes = True if replaces else changes
 
         return DiffResult(
             changes=changes,
